@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="zh-Hant" class="">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>個人開銷管理儀表板 v5.9</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Firebase SDK -->
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-auth.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-firestore.js"></script>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-light: #f5f5f4; --bg-dark: #1f2937;
+            --surface-light: #ffffff; --surface-dark: #374151;
+            --text-light: #1f2937; --text-dark: #f3f4f6;
+            --text-muted-light: #6b7280; --text-muted-dark: #9ca3af;
+            --accent: #FFC300; --accent-hover: #E6B000;
+            --highlight-bg: rgba(255, 195, 0, 0.3);
+        }
+        html.dark { color-scheme: dark; }
+        body { font-family: 'Noto Sans TC', sans-serif; background-color: var(--bg-light); color: var(--text-light); }
+        html.dark body { background-color: var(--bg-dark); color: var(--text-dark); }
+        .surface { background-color: var(--surface-light); }
+        html.dark .surface { background-color: var(--surface-dark); }
+        .text-muted { color: var(--text-muted-light); }
+        html.dark .text-muted { color: var(--text-muted-dark); }
+        .btn-accent { background-color: var(--accent); color: #1f2937; }
+        .btn-accent:hover { background-color: var(--accent-hover); }
+        [contenteditable]:focus { outline: 2px solid var(--accent); box-shadow: 0 0 0 4px rgba(255, 195, 0, 0.2); border-radius: 4px; }
+        .modal-backdrop { background-color: rgba(0, 0, 0, 0.6); }
+        .view-btn.active { background-color: var(--accent); color: #1f2937; }
+        .view-btn { background-color: #e7e5e4; color: #374151; }
+        html.dark .view-btn { background-color: #4b5563; color: #e5e7eb; }
+        html.dark .view-btn.active { background-color: var(--accent); color: #1f2937; }
+        .calendar-grid { grid-template-columns: repeat(7, minmax(0, 1fr)); }
+        .highlight { transition: background-color 0.5s ease; background-color: var(--highlight-bg); }
+    </style>
+</head>
+<body class="transition-colors duration-300">
+
+    <div id="login-view" class="flex items-center justify-center min-h-screen">
+        <div class="text-center p-8 surface rounded-2xl shadow-lg max-w-sm mx-auto">
+            <h1 class="text-2xl font-bold mb-2">歡迎使用</h1>
+            <p class="text-muted mb-6">雲端個人開銷管理儀表板</p>
+            <button id="login-btn" class="w-full bg-white hover:bg-gray-100 text-gray-800 font-semibold py-2 px-4 border border-gray-300 rounded-lg shadow-sm flex items-center justify-center">
+                <svg class="w-5 h-5 mr-2" viewBox="0 0 48 48"><path fill="#4285F4" d="M24 9.5c3.9 0 6.9 1.5 9.2 3.6l6.9-6.9C35.4 2.1 30.1 0 24 0 14.9 0 7.3 5.4 4.1 13.2l7.8 6C13.8 13.5 18.5 9.5 24 9.5z"></path><path fill="#34A853" d="M46.2 25.4c0-1.7-.2-3.4-.5-5H24v9.3h12.5c-.5 3-2.1 5.6-4.6 7.3l7.5 5.8c4.4-4.1 7.3-10.1 7.3-17.4z"></path><path fill="#FBBC05" d="M19.4 28.7c-1.2-3.6-1.2-7.6 0-11.2l-7.8-6C7.3 17.1 7.3 31 11.6 36.5l7.8-6z"></path><path fill="#EA4335" d="M24 48c6.1 0 11.4-2 15.2-5.4l-7.5-5.8c-2.5 1.7-5.7 2.7-9.7 2.7-5.5 0-10.2-4-11.9-9.3l-7.8 6C7.3 42.6 14.9 48 24 48z"></path><path fill="none" d="M0 0h48v48H0z"></path></svg>
+                使用 Google 帳號登入
+            </button>
+            <p id="login-error" class="text-red-500 text-sm mt-4"></p>
+        </div>
+    </div>
+
+    <div id="app-view" class="hidden">
+        <div class="container mx-auto p-4 max-w-2xl min-h-screen">
+            <header class="text-center pt-4 pb-6 relative">
+                 <div class="absolute top-4 right-0 flex items-center space-x-2">
+                    <button id="theme-toggle" class="p-2 rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-accent">
+                        <svg id="theme-icon-light" class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path></svg>
+                        <svg id="theme-icon-dark" class="w-6 h-6 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path></svg>
+                    </button>
+                    <button id="logout-btn" class="text-sm text-muted hover:text-red-500 font-semibold">登出</button>
+                </div>
+                <h1 id="main-title" contenteditable="true" class="text-3xl font-bold px-10">個人開銷管理儀表板</h1>
+                <p id="sub-title" contenteditable="true" class="text-muted mt-2 px-10">追蹤、分析、管理您的財務</p>
+            </header>
+
+            <div class="p-2 mb-6 rounded-full flex items-center justify-center surface shadow-md">
+                <button data-view="expenses" class="view-btn w-1/2 py-2 rounded-full font-semibold transition-all duration-300">花費</button>
+                <button data-view="savings" class="view-btn w-1/2 py-2 rounded-full font-semibold transition-all duration-300">儲蓄</button>
+            </div>
+
+            <main id="app-content" class="pb-24">
+                <div id="expenses-view"></div>
+                <div id="savings-view" class="hidden"></div>
+            </main>
+
+            <button id="fab" class="btn-accent fixed bottom-6 right-6 w-14 h-14 rounded-full flex items-center justify-center shadow-lg transform hover:scale-110 transition-transform">
+                <svg class="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+            </button>
+        </div>
+    </div>
+
+    <div id="modal-container"></div>
+
+    <script>
+    document.addEventListener('DOMContentLoaded', () => {
+        // TODO: 在此貼上您的 Firebase 設定碼
+const firebaseConfig = {
+  apiKey: "AIzaSyCfFrEBWiyubvcebdIurVbPXorbL-s5Ew4",
+  authDomain: "expense-tracker-d0877.firebaseapp.com",
+  projectId: "expense-tracker-d0877",
+  storageBucket: "expense-tracker-d0877.firebasestorage.app",
+  messagingSenderId: "465746793688",
+  appId: "1:465746793688:web:250faf99964f51518273ad",
+  measurementId: "G-F0LLCYSSQS"
+};
+
+        // --- 以下為應用程式邏輯，通常不需修改 ---
+
+        if (!firebaseConfig.apiKey) {
+            document.body.innerHTML = '<div class="p-8 text-center text-red-500"><h1>Firebase 設定無效</h1><p>請在程式碼中填入您的 firebaseConfig 物件。</p></div>';
+            return;
+        }
+
+        firebase.initializeApp(firebaseConfig);
+        const auth = firebase.auth();
+        const db = firebase.firestore();
+        let userRef = null;
+
+        let state = {};
+        const defaultState = {
+            expenses: [],
+            categories: ['餐飲', '交通', '購物', '娛樂', '居家', '醫療', '其他'],
+            goals: [],
+            ui: {
+                activeView: 'expenses',
+                theme: 'light',
+                mainTitle: '個人開銷管理儀表板',
+                subTitle: '追蹤、分析、管理您的財務',
+                calendarDate: new Date().toISOString()
+            }
+        };
+
+        const DOM = {
+            loginView: document.getElementById('login-view'),
+            appView: document.getElementById('app-view'),
+            loginBtn: document.getElementById('login-btn'),
+            logoutBtn: document.getElementById('logout-btn'),
+            loginError: document.getElementById('login-error'),
+            themeToggle: document.getElementById('theme-toggle'),
+            themeIconLight: document.getElementById('theme-icon-light'),
+            themeIconDark: document.getElementById('theme-icon-dark'),
+            mainTitleEl: document.getElementById('main-title'),
+            subTitleEl: document.getElementById('sub-title'),
+            viewButtons: document.querySelectorAll('.view-btn'),
+            expensesView: document.getElementById('expenses-view'),
+            savingsView: document.getElementById('savings-view'),
+            fab: document.getElementById('fab'),
+            modalContainer: document.getElementById('modal-container'),
+        };
+
+        const formatCurrency = (amount) => new Intl.NumberFormat('zh-TW', { style: 'currency', currency: 'TWD', minimumFractionDigits: 0 }).format(amount);
+        const generateId = () => db.collection('whatever').doc().id;
+
+        const saveData = () => {
+            if (userRef) {
+                userRef.set(state).catch(error => console.error("儲存資料失敗:", error));
+            }
+        };
+        const loadData = async () => {
+            if (userRef) {
+                const doc = await userRef.get();
+                if (doc.exists) {
+                    const data = doc.data();
+                    state = { ...defaultState, ...data, ui: { ...defaultState.ui, ...(data.ui || {}) } };
+                     if (!data.categories || data.categories.length === 0) {
+                        state.categories = defaultState.categories;
+                    }
+                } else {
+                    state = defaultState;
+                    saveData();
+                }
+                initializeAppUI();
+            }
+        };
+        
+        const initializeAppUI = () => {
+            applyTheme();
+            applyUIText();
+            switchView('expenses');
+        };
+
+        const applyTheme = () => {
+            if (state.ui.theme === 'dark') {
+                document.documentElement.classList.add('dark');
+                DOM.themeIconLight.classList.add('hidden');
+                DOM.themeIconDark.classList.remove('hidden');
+            } else {
+                document.documentElement.classList.remove('dark');
+                DOM.themeIconLight.classList.remove('hidden');
+                DOM.themeIconDark.classList.add('hidden');
+            }
+        };
+
+        const applyUIText = () => {
+            DOM.mainTitleEl.textContent = state.ui.mainTitle;
+            DOM.subTitleEl.textContent = state.ui.subTitle;
+        };
+
+        const switchView = (view) => {
+            state.ui.activeView = view;
+            DOM.viewButtons.forEach(btn => btn.classList.toggle('active', btn.dataset.view === view));
+            DOM.expensesView.classList.toggle('hidden', view !== 'expenses');
+            DOM.savingsView.classList.toggle('hidden', view !== 'savings');
+            renderContentForView(view);
+        };
+        
+        const renderContentForView = (view) => {
+            if (view === 'expenses') renderExpensesView();
+            else if (view === 'savings') renderSavingsView();
+        };
+
+        const renderCalendar = (date) => {
+            const viewDate = new Date(date);
+            const year = viewDate.getFullYear();
+            const month = viewDate.getMonth();
+            const firstDayOfMonth = new Date(year, month, 1).getDay();
+            const daysInMonth = new Date(year, month + 1, 0).getDate();
+            const dayNames = ['日', '一', '二', '三', '四', '五', '六'];
+            let calendarHTML = `<div class="grid calendar-grid text-center font-semibold text-muted text-sm mb-2">${dayNames.map(d => `<div>${d}</div>`).join('')}</div><div class="grid calendar-grid gap-1">`;
+            for (let i = 0; i < firstDayOfMonth; i++) calendarHTML += `<div></div>`;
+            for (let day = 1; day <= daysInMonth; day++) {
+                const currentDate = new Date(year, month, day);
+                const dateStr = currentDate.toISOString().slice(0, 10);
+                const today = new Date();
+                const isToday = today.getFullYear() === year && today.getMonth() === month && today.getDate() === day;
+                const dailyExpenses = state.expenses.filter(exp => exp.date === dateStr);
+                
+                let expensesHTML = '';
+                if (dailyExpenses.length > 0) {
+                    const dailyTotal = dailyExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+                    expensesHTML = `<div class="mt-2 text-center text-sm font-bold text-red-500">${formatCurrency(dailyTotal)}</div>`;
+                }
+
+                calendarHTML += `<div class="surface p-1.5 rounded-lg min-h-[80px] border ${isToday ? 'border-accent' : 'border-transparent'}"><div class="text-xs ${isToday ? 'font-bold' : 'text-muted'}">${day}</div>${expensesHTML}</div>`;
+            }
+            calendarHTML += `</div>`;
+            return calendarHTML;
+        };
+
+        const renderExpensesView = () => {
+            const viewDate = new Date(state.ui.calendarDate);
+            const viewedMonthExpenses = state.expenses.filter(exp => {
+                const expDate = new Date(exp.date);
+                return expDate.getFullYear() === viewDate.getFullYear() && expDate.getMonth() === viewDate.getMonth();
+            });
+            const total = viewedMonthExpenses.reduce((sum, exp) => sum + exp.amount, 0);
+            const categoryTotals = viewedMonthExpenses.reduce((acc, exp) => {
+                acc[exp.category] = (acc[exp.category] || 0) + exp.amount;
+                return acc;
+            }, {});
+            const sortedCategoryTotals = Object.entries(categoryTotals).sort(([,a],[,b]) => b-a);
+            let categoryTotalsHTML = sortedCategoryTotals.length > 0 ? sortedCategoryTotals.map(([category, amount]) => `<div class="flex justify-between items-center py-2 px-4 border-b border-gray-200 dark:border-gray-600 last:border-b-0"><span>${category}</span><span class="font-semibold">${formatCurrency(amount)}</span></div>`).join('') : `<p class="text-center text-muted p-4">所選月份尚無消費</p>`;
+            let expenseListHTML = state.expenses.length > 0 ? [...state.expenses].sort((a, b) => new Date(b.date) - new Date(a.date)).map(exp => {
+                const noteHTML = exp.notes ? `<p class="text-xs text-muted italic pl-2">${exp.notes}</p>` : '';
+                return `<div id="expense-${exp.id}" class="flex items-center p-3 border-b border-gray-200 dark:border-gray-600 last:border-b-0"><div class="flex-grow"><p class="font-semibold">${exp.name}</p>${noteHTML}<p class="text-sm text-muted mt-1">${exp.date} · ${exp.category}</p></div><div class="text-right"><p class="font-bold text-lg text-red-500">${formatCurrency(exp.amount)}</p><div class="text-xs space-x-2 mt-1"><button onclick="window.app.openEditExpenseModal('${exp.id}')" class="text-blue-500 hover:text-blue-600">編輯</button><button onclick="window.app.deleteExpense('${exp.id}')" class="text-red-500 hover:text-red-600">刪除</button></div></div></div>`
+            }).join('') : `<p class="text-center text-muted p-8">尚未有任何消費紀錄...</p>`;
+            const calendarMonthStr = `${viewDate.getFullYear()} 年 ${viewDate.getMonth() + 1} 月`;
+            DOM.expensesView.innerHTML = `
+                <div class="grid grid-cols-2 gap-4 mb-6">
+                    <div class="surface p-4 rounded-xl text-center shadow"><h3 class="text-sm text-muted">所選月份總支出</h3><p class="text-2xl font-bold text-red-500">${formatCurrency(total)}</p></div>
+                    <div class="surface p-4 rounded-xl text-center shadow"><h3 class="text-sm text-muted">所選月份筆數</h3><p class="text-2xl font-bold">${viewedMonthExpenses.length}</p></div>
+                </div>
+                <h2 class="text-xl font-bold mb-2 px-2">所選月份類別總計</h2><div class="surface rounded-xl shadow overflow-hidden mb-6">${categoryTotalsHTML}</div>
+                <div class="flex justify-between items-center mb-2 px-2"><h2 class="text-xl font-bold">消費月曆</h2></div>
+                <div class="surface rounded-xl shadow p-4 mb-6"><div class="flex justify-between items-center mb-4"><button id="prev-month-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">&lt;</button><h3 class="font-bold text-lg">${calendarMonthStr}</h3><button id="next-month-btn" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-600">&gt;</button></div><div id="calendar-container">${renderCalendar(state.ui.calendarDate)}</div></div>
+                <div class="flex justify-between items-center mb-2 px-2"><h2 class="text-xl font-bold">交易紀錄</h2><button id="export-btn" class="text-sm btn-accent py-1 px-3 rounded-lg font-semibold">匯出 CSV</button></div>
+                <div class="surface rounded-xl shadow overflow-hidden mb-6">${expenseListHTML}</div>
+            `;
+            document.getElementById('export-btn').addEventListener('click', window.app.exportCsv);
+            document.getElementById('prev-month-btn').addEventListener('click', () => window.app.changeMonth(-1));
+            document.getElementById('next-month-btn').addEventListener('click', () => window.app.changeMonth(1));
+        };
+
+        const renderSavingsView = () => {
+            let goalsHTML = state.goals.length > 0 ? state.goals.map(goal => {
+                const percentage = Math.max(0, Math.min(100, (goal.saved / goal.target) * 100));
+                return `<div class="p-4 border-b border-gray-200 dark:border-gray-600 last:border-b-0"><div class="flex justify-between items-center mb-2"><span class="font-bold text-lg">${goal.name}</span><div class="text-xs space-x-2"><button onclick="window.app.openEditGoalModal('${goal.id}')" class="text-blue-500 hover:text-blue-600">編輯</button><button onclick="window.app.deleteGoal('${goal.id}')" class="text-red-500 hover:text-red-600">刪除</button></div></div><div class="w-full bg-gray-200 dark:bg-gray-600 rounded-full h-4"><div class="h-4 rounded-full" style="width: ${percentage}%; background-color: var(--accent);"></div></div><div class="flex justify-between text-xs mt-1 text-muted"><span>${percentage.toFixed(1)}%</span><span>${formatCurrency(goal.saved)} / ${formatCurrency(goal.target)}</span></div></div>`
+            }).join('') : `<p class="text-center text-muted p-8">尚未設定儲蓄目標...</p>`;
+            DOM.savingsView.innerHTML = `<h2 class="text-xl font-bold mb-2 px-2">儲蓄目標</h2><div class="surface rounded-xl shadow overflow-hidden">${goalsHTML}</div>`;
+        };
+        
+        const openModal = (title, contentHTML, onSubmit) => {
+            DOM.modalContainer.innerHTML = `<div id="modal-backdrop" class="fixed inset-0 z-40 modal-backdrop"></div><div id="modal-dialog" class="fixed z-50 bottom-0 left-0 right-0 surface rounded-t-2xl p-6 shadow-lg transform translate-y-full transition-transform duration-300"><h3 class="text-xl font-bold mb-4">${title}</h3><div id="modal-content-wrapper">${contentHTML}</div></div>`;
+            const backdrop = document.getElementById('modal-backdrop');
+            const dialog = document.getElementById('modal-dialog');
+            const form = dialog.querySelector('form');
+            backdrop.onclick = () => closeModal(dialog, backdrop);
+            if (form && onSubmit) { form.onsubmit = (e) => { e.preventDefault(); onSubmit(new FormData(form)); closeModal(dialog, backdrop); }; }
+            requestAnimationFrame(() => {
+                dialog.classList.remove('translate-y-full');
+            });
+        };
+
+        const closeModal = (dialog, backdrop) => {
+            dialog.classList.add('translate-y-full');
+            backdrop.classList.add('opacity-0');
+            setTimeout(() => DOM.modalContainer.innerHTML = '', 300);
+        };
+
+        const getExpenseFormHTML = (expense = {}) => {
+            const categoryOptions = state.categories.map(cat => `<option value="${cat}" ${expense.category === cat ? 'selected' : ''}>${cat}</option>`).join('');
+            return `<form id="modal-form"><div class="space-y-4"><input type="hidden" name="id" value="${expense.id || ''}"><div><label class="text-sm text-muted">品項</label><input type="text" name="name" value="${expense.name || ''}" required class="w-full mt-1 p-2 rounded-lg border bg-transparent"></div><div><label class="text-sm text-muted">金額</label><input type="number" name="amount" value="${expense.amount || ''}" min="0" required class="w-full mt-1 p-2 rounded-lg border bg-transparent"></div><div><div class="flex justify-between items-center"><label class="text-sm text-muted">類別</label><button type="button" onclick="window.app.openManageCategoriesModal()" class="text-xs font-semibold" style="color: var(--accent);">管理類別</button></div><select name="category" class="w-full mt-1 p-2 rounded-lg border bg-transparent">${categoryOptions}</select></div><div><label class="text-sm text-muted">日期</label><input type="date" name="date" value="${expense.date || new Date().toISOString().slice(0,10)}" required class="w-full mt-1 p-2 rounded-lg border bg-transparent"></div><div><label class="text-sm text-muted">備註 (選填)</label><textarea name="notes" class="w-full mt-1 p-2 rounded-lg border bg-transparent" rows="2">${expense.notes || ''}</textarea></div></div><div class="mt-6 flex justify-end"><button type="submit" class="btn-accent font-bold py-2 px-6 rounded-lg">儲存</button></div></form>`;
+        };
+        
+        const getGoalFormHTML = (goal = {}) => `<form id="modal-form"><div class="space-y-4"><input type="hidden" name="id" value="${goal.id || ''}"><div><label class="text-sm text-muted">目標名稱</label><input type="text" name="name" value="${goal.name || ''}" required class="w-full mt-1 p-2 rounded-lg border bg-transparent"></div><div><label class="text-sm text-muted">目標金額</label><input type="number" name="target" value="${goal.target || ''}" min="0" required class="w-full mt-1 p-2 rounded-lg border bg-transparent"></div><div><label class="text-sm text-muted">目前已存</label><input type="number" name="saved" value="${goal.saved || ''}" min="0" required class="w-full mt-1 p-2 rounded-lg border bg-transparent"></div></div><div class="mt-6 flex justify-end"><button type="submit" class="btn-accent font-bold py-2 px-6 rounded-lg">儲存</button></div></form>`;
+        
+        window.app = {
+            openEditExpenseModal: (id) => {
+                const expense = state.expenses.find(e => e.id === id);
+                openModal('編輯支出', getExpenseFormHTML(expense), (formData) => {
+                    const index = state.expenses.findIndex(e => e.id === id);
+                    state.expenses[index] = { ...expense, name: formData.get('name'), amount: parseFloat(formData.get('amount')), category: formData.get('category'), date: formData.get('date'), notes: formData.get('notes') };
+                    saveData();
+                    renderContentForView('expenses');
+                });
+            },
+            deleteExpense: (id) => {
+                if (confirm('確定要刪除這筆紀錄嗎？')) {
+                    state.expenses = state.expenses.filter(e => e.id !== id);
+                    saveData();
+                    renderContentForView('expenses');
+                }
+            },
+            openEditGoalModal: (id) => {
+                const goal = state.goals.find(g => g.id === id);
+                openModal(id ? '編輯儲蓄目標' : '新增儲蓄目標', getGoalFormHTML(goal), (formData) => {
+                    const goalId = formData.get('id');
+                    const goalData = { name: formData.get('name'), target: parseFloat(formData.get('target')), saved: parseFloat(formData.get('saved')) };
+                    if (goalId) {
+                        const index = state.goals.findIndex(g => g.id === goalId);
+                        state.goals[index] = { ...state.goals[index], ...goalData };
+                    } else {
+                        state.goals.push({ id: generateId(), ...goalData });
+                    }
+                    saveData();
+                    renderContentForView('savings');
+                });
+            },
+            deleteGoal: (id) => {
+                 if (confirm('確定要刪除這個儲蓄目標嗎？')) {
+                    state.goals = state.goals.filter(g => g.id !== id);
+                    saveData();
+                    renderContentForView('savings');
+                }
+            },
+            openManageCategoriesModal: () => {
+                const renderCategoryList = () => state.categories.map(cat => `<li class="flex justify-between items-center p-2 border-b border-gray-200 dark:border-gray-600"><input type="text" value="${cat}" onchange="window.app.updateCategory('${cat}', this.value)" class="border-b-2 border-transparent focus:border-accent outline-none bg-transparent flex-grow"><button onclick="window.app.deleteCategory('${cat}')" class="text-red-500 hover:text-red-700 ml-4 text-sm">刪除</button></li>`).join('');
+                const contentHTML = `<ul id="category-list-ui" class="mb-4 max-h-60 overflow-y-auto">${renderCategoryList()}</ul><form id="add-category-form" class="flex space-x-2"><input type="text" id="new-category-name" placeholder="新增類別名稱" required class="flex-grow border p-2 rounded-lg bg-transparent"><button type="submit" class="btn-accent text-black font-semibold px-4 py-2 rounded-lg">新增</button></form>`;
+                openModal('管理類別', contentHTML, null);
+                document.getElementById('add-category-form').onsubmit = (e) => {
+                    e.preventDefault();
+                    const newCatName = document.getElementById('new-category-name').value.trim();
+                    if (newCatName && !state.categories.includes(newCatName)) {
+                        state.categories.push(newCatName);
+                        saveData();
+                        document.getElementById('category-list-ui').innerHTML = renderCategoryList();
+                        e.target.reset();
+                    }
+                };
+            },
+            updateCategory: (oldName, newName) => {
+                newName = newName.trim();
+                if (!newName || (state.categories.includes(newName) && oldName !== newName)) { alert('類別名稱不可為空或重複！'); window.app.openManageCategoriesModal(); return; }
+                const index = state.categories.indexOf(oldName);
+                if (index > -1) { state.categories[index] = newName; state.expenses.forEach(exp => { if (exp.category === oldName) exp.category = newName; }); saveData(); }
+            },
+            deleteCategory: (name) => {
+                if (state.categories.length <= 1) { alert('至少需保留一個類別。'); return; }
+                if (confirm(`確定要刪除「${name}」類別嗎？\n使用此類別的紀錄將會被歸類到「其他」。`)) {
+                    state.categories = state.categories.filter(cat => cat !== name);
+                    if (!state.categories.includes('其他')) state.categories.push('其他');
+                    state.expenses.forEach(exp => { if (exp.category === name) exp.category = '其他'; });
+                    saveData();
+                    document.getElementById('category-list-ui').innerHTML = state.categories.map(cat => `<li class="flex justify-between items-center p-2 border-b"><input type="text" value="${cat}" onchange="window.app.updateCategory('${cat}', this.value)" class="..."><button onclick="window.app.deleteCategory('${cat}')" class="...">刪除</button></li>`).join('');
+                }
+            },
+            exportCsv: () => {
+                if (state.expenses.length === 0) { alert('沒有資料可以匯出。'); return; }
+                let csvContent = "data:text/csv;charset=utf-8,\uFEFF";
+                csvContent += "日期,品項,類別,金額,備註\n";
+                state.expenses.forEach(exp => { const notes = exp.notes ? `"${exp.notes.replace(/"/g, '""')}"` : ''; csvContent += [exp.date, `"${exp.name.replace(/"/g, '""')}"`, exp.category, exp.amount, notes].join(",") + "\n"; });
+                const link = document.createElement("a");
+                link.href = encodeURI(csvContent);
+                link.download = `我的記帳紀錄_${new Date().toISOString().slice(0,10)}.csv`;
+                link.click();
+            },
+            changeMonth: (direction) => {
+                const currentDate = new Date(state.ui.calendarDate);
+                currentDate.setMonth(currentDate.getMonth() + direction);
+                state.ui.calendarDate = currentDate.toISOString();
+                saveData();
+                renderContentForView('expenses');
+            },
+            scrollToExpense: (id) => {
+                const element = document.getElementById(`expense-${id}`);
+                if (element) {
+                    element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    element.classList.add('highlight');
+                    setTimeout(() => { element.classList.remove('highlight'); }, 2000);
+                }
+            }
+        };
+
+        // AUTHENTICATION
+        auth.onAuthStateChanged(user => {
+            if (user) {
+                userRef = db.collection('users').doc(user.uid);
+                DOM.loginView.classList.add('hidden');
+                DOM.appView.classList.remove('hidden');
+                loadData();
+            } else {
+                auth.getRedirectResult()
+                    .then((result) => {
+                        if (result.user) {
+                            // User is signed in.
+                        }
+                    })
+                    .catch((error) => {
+                        console.error("登入跳轉時發生錯誤:", error);
+                        DOM.loginError.textContent = `登入失敗: ${error.message}`;
+                    });
+                
+                userRef = null;
+                DOM.loginView.classList.remove('hidden');
+                DOM.appView.classList.add('hidden');
+            }
+        });
+
+        DOM.loginBtn.addEventListener('click', () => {
+            const provider = new firebase.auth.GoogleAuthProvider();
+            auth.signInWithRedirect(provider);
+        });
+
+        DOM.logoutBtn.addEventListener('click', () => {
+            auth.signOut().catch(error => console.error("登出失敗:", error));
+        });
+
+        // OTHER EVENT LISTENERS
+        DOM.themeToggle.addEventListener('click', () => { state.ui.theme = state.ui.theme === 'light' ? 'dark' : 'light'; applyTheme(); saveData(); });
+        DOM.mainTitleEl.addEventListener('blur', () => { state.ui.mainTitle = DOM.mainTitleEl.textContent; saveData(); });
+        DOM.subTitleEl.addEventListener('blur', () => { state.ui.subTitle = DOM.subTitleEl.textContent; saveData(); });
+        DOM.viewButtons.forEach(btn => btn.addEventListener('click', () => switchView(btn.dataset.view)));
+        DOM.fab.addEventListener('click', () => {
+            if (state.ui.activeView === 'expenses') {
+                openModal('新增支出', getExpenseFormHTML(), (formData) => {
+                    const newExpense = { id: generateId(), name: formData.get('name'), amount: parseFloat(formData.get('amount')), category: formData.get('category'), date: formData.get('date'), notes: formData.get('notes') };
+                    state.expenses.push(newExpense);
+                    saveData();
+                    renderContentForView('expenses');
+                });
+            } else {
+                window.app.openEditGoalModal(null);
+            }
+        });
+        
+    });
+    </script>
+</body>
+</html>
